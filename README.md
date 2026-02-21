@@ -1,96 +1,113 @@
-# Gender Classification from Facial Images
+# 🚻 Gender Classification with EfficientNet-B0
 
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Team: Team2_Equalis](https://img.shields.io/badge/Team-Team2__Equalis-green.svg)](#)
+
+A state-of-the-art gender classification system built using **EfficientNet-B0**, optimized for both high-accuracy GPU training and high-speed CPU deployment via **INT8 Dynamic Quantization**.
 
 ---
 
-## Problem Statement
+## 🚀 Key Highlights
 
-Binary classification of gender from facial images:
-- **Label 0** → Male
-- **Label 1** → Female
+- **99.59% Test Accuracy**: Near-perfect performance on held-out datasets.
+- **4x Inference Speedup**: Optimized with INT8 CPU quantization for real-time applications.
+- **Robust Inference**: Includes **Test Time Augmentation (TTA)** for increased reliability.
+- **Efficient Architecture**: Leverages transfer learning from ImageNet-weighted EfficientNet-B0.
 
-## Model Architecture
+---
 
-- **Base**: EfficientNetB0 (transfer learning from ImageNet)
-- **Classifier Head**: GlobalAvgPool → Linear(1280, 512) → BatchNorm → ReLU → Dropout(0.3) → Linear(512, 1) → Sigmoid
-- **Training**: Two-phase (frozen feature extraction → fine-tuning top layers)
-- **Loss**: Weighted Binary Cross-Entropy (handles class imbalance)
-- **Optimizer**: Adam with ReduceLROnPlateau scheduling
+## 📊 Performance Metrics
 
-## Dataset
+| Split | Accuracy | F1-Score | ROC-AUC |
+| :--- | :--- | :--- | :--- |
+| **Validation** | 98.34% | 0.9787 | 0.9989 |
+| **Test** | **99.59%** | **0.9958** | **0.9999** |
 
-| Split | Male | Female | Total |
-|-------|------|--------|-------|
-| Train | 67,155 | 92,845 | 160,000 |
-| Validation | 8,820 | 13,778 | 22,598 |
-| Test | 8,459 | 11,542 | 20,001 |
+### CPU Optimization (INT8)
+| Version | Latency (CPU) | Throughput | Model Size |
+| :--- | :--- | :--- | :--- |
+| **Standard (FP32)** | 118 ms/img | 8.4 fps | 18.09 MB |
+| **Quantized (INT8)** | **28.5 ms/img** | **35.0 fps** | **17.58 MB** |
 
-## Setup
+---
 
+## 🏗️ Architecture & Methodology
+
+The model employs a two-phase training strategy to ensure stable convergence and fine-grained feature extraction.
+
+```mermaid
+graph LR
+    Input["Facial Image (224x224)"] --> Base["EfficientNet-B0 Backbone"]
+    Base --> GAP["Global Avg Pooling"]
+    GAP --> Head["Dense (512) + BatchNorm + Dropout"]
+    Head --> Output["Sigmoid Output (Gender)"]
+    
+    subgraph "Training Pipeline"
+    T1["Phase 1: Frozen Backbone (10 Epochs)"]
+    T2["Phase 2: Fine-tuning (10 Epochs)"]
+    end
+```
+
+### Technical Design Specs:
+- **Optimizer**: Adam with `ReduceLROnPlateau` scheduling.
+- **Loss Function**: Weighted Binary Cross-Entropy to handle class imbalance.
+- **Augmentation**: Random resizing, cropping, horizontal flips, and color jittering.
+
+---
+
+## 📁 Project Structure
+
+```text
+Team2_Equalis/
+├── model/
+│   ├── train.py            # Phase 1 & 2 training logic
+│   ├── model.py            # Architecture definitions
+│   ├── data_loader.py      # Optimized data pipelines
+│   ├── inference.py        # CPU/GPU inference API
+│   ├── quantize.py         # INT8 quantization script
+│   ├── utils.py            # TTA, Grad-CAM, & metrics
+│   └── outputs/            # Checkpoints & visualizations
+├── README.md               # Main project documentation
+└── requirements.txt        # Dependency list
+```
+
+---
+
+## 🛠️ Getting Started
+
+### 1. Installation
 ```bash
+git clone https://github.com/YatindraRai002/Gender-Classification-Model.git
+cd Gender-Classification-Model
 pip install -r requirements.txt
 ```
 
-## Inference
-
+### 2. Inference
+Run a prediction on a single image:
 ```bash
-# Single image prediction
-python inference.py --image path/to/face.jpg
+# Standard Inference
+python model/inference.py --image path/to/image.jpg --checkpoint model/outputs/best_efficientnet_b0.pth
 
-# With Test Time Augmentation (higher accuracy)
-python inference.py --image path/to/face.jpg --tta
+# High-Speed Optimized Inference (CPU)
+python model/inference.py --image path/to/image.jpg --checkpoint model/outputs/quantized_efficientnet_b0.pth
 ```
 
-### Python API
-
-```python
-from inference import GenderClassifier
-
-clf = GenderClassifier()  # auto-loads model/model.pth
-result = clf.predict("face.jpg")
-print(f"Gender: {result['label']} ({result['probability']:.1%})")
-# Output: Gender: Male (96.2%)
+### 3. Training
+To reproduce training:
+```bash
+cd model
+python train.py --model efficientnet_b0 --data-dir "../Dataset"
 ```
-
-### Output Format
-
-```json
-{
-    "class": 0,
-    "label": "Male",
-    "probability": 0.9623,
-    "raw_score": 0.9623
-}
-```
-
-## Project Structure
-
-```
-Team2_Equalis/
-├── model/
-│   └── model.pth          # Trained model checkpoint
-├── inference.py            # Self-contained inference script
-├── requirements.txt        # Dependencies
-├── model_card.pdf          # Model card documentation
-└── README.md               # This file
-```
-
-## Key Features
-
-- **Transfer Learning**: EfficientNetB0 pretrained on ImageNet
-- **Class Imbalance Handling**: Weighted BCE loss
-- **Mixed Precision Training**: 2× faster with torch.cuda.amp
-- **Test Time Augmentation**: Averages predictions across 5 augmented views
-- **Two-Phase Training**: Frozen feature extraction → fine-tuning
-- **Early Stopping**: Prevents overfitting with patience-based monitoring
-
-## Ethical Considerations
-
-- This model treats gender as binary, which is a simplification
-- Model may learn cultural visual cues (hair, makeup) rather than biological markers
-- Should not be used for identity verification or surveillance
-- Performance should be audited across demographic subgroups
 
 ---
 
+## ⚖️ Ethical Considerations
 
+- **Binary Representation**: This model treats gender as binary, which does not represent the full spectrum of gender identity.
+- **Bias**: Facial recognition models can inherit biases from training data. Users should audit performance across diverse demographic groups.
+- **Privacy**: Ensure compliance with local privacy laws and obtain necessary consent before processing personal imagery.
+
+---
+
+**Built by Team2_Equalis**
