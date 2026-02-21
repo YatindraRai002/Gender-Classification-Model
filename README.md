@@ -1,5 +1,5 @@
 # Gender Classification from Facial Images
-**Team: Team2_Equalis**
+
 
 ---
 
