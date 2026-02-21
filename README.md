@@ -110,4 +110,4 @@ python train.py --model efficientnet_b0 --data-dir "../Dataset"
 
 ---
 
-**Built by Team2_Equalis**
+
