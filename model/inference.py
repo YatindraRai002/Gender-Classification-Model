@@ -1,21 +1,4 @@
-"""
-inference.py — Production-ready inference pipeline.
 
-Functions:
-    - load_model(): Load a saved checkpoint
-    - preprocess_image(): Apply validation transforms to a single image
-    - predict(): Return class label + probability
-
-Usage:
-    # CLI single image
-    python inference.py --image path/to/face.jpg --checkpoint outputs/best_efficientnet_b0.pth --model efficientnet_b0
-
-    # Python API
-    from inference import GenderClassifier
-    clf = GenderClassifier("outputs/best_efficientnet_b0.pth", "efficientnet_b0")
-    result = clf.predict("path/to/face.jpg")
-    print(result)  # {"class": 0, "label": "Male", "probability": 0.1234}
-"""
 
 import os
 import argparse
@@ -27,23 +10,16 @@ from model import get_model
 from utils import get_device, predict_with_tta
 
 
-# ============================================================
-# CONSTANTS
-# ============================================================
+
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
-# ImageFolder assigns alphabetically: Female=0, Male=1
-# Problem statement: Male=0, Female=1
-# We remap at inference time:
+
 IMAGEFOLDER_TO_LABEL = {0: "Female", 1: "Male"}
 LABEL_TO_PROBLEM = {"Male": 0, "Female": 1}
 
 
-# ============================================================
-# PREPROCESSING
-# ============================================================
 
 def get_inference_transform(image_size: int = 224) -> transforms.Compose:
     """
@@ -80,9 +56,7 @@ def preprocess_image(image_path: str, image_size: int = 224) -> torch.Tensor:
     return tensor
 
 
-# ============================================================
-# MODEL LOADING
-# ============================================================
+
 
 def load_model(checkpoint_path: str, model_name: str, device=None):
     """
@@ -104,38 +78,40 @@ def load_model(checkpoint_path: str, model_name: str, device=None):
 
     # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    
+    # Handle both full checkpoints and raw state_dicts
+    state_dict = checkpoint.get("model_state_dict", checkpoint)
+    
+    # Handle dynamic quantization naming if applicable
+    # model.load_state_dict(state_dict)
+    
+    # Logic to handle quantized model loading
+    is_quantized = "quantized" in checkpoint_path.lower()
+    
+    if is_quantized:
+        print("[INFO] Loading as a quantized model...")
+        # For dynamic quantization of Linear layers, we need to apply the quantization first
+        # before loading the state dict
+        model = torch.quantization.quantize_dynamic(
+            model, {torch.nn.Linear}, dtype=torch.qint8
+        )
+    
+    model.load_state_dict(state_dict)
     model = model.to(device)
     model.eval()
 
     print(f"[INFO] Model loaded: {model_name}")
     print(f"  Checkpoint: {checkpoint_path}")
-    print(f"  Best epoch: {checkpoint.get('epoch', '?')}")
-    print(f"  Val F1:     {checkpoint.get('val_f1', '?')}")
+    if isinstance(checkpoint, dict) and "epoch" in checkpoint:
+        print(f"  Best epoch: {checkpoint.get('epoch', '?')}")
+        print(f"  Val F1:     {checkpoint.get('val_f1', '?')}")
 
     return model
 
 
-# ============================================================
-# PREDICTION
-# ============================================================
 
 def predict(model, image_path: str, device=None):
-    """
-    Predict gender from a single facial image.
 
-    Args:
-        model: Loaded PyTorch model (in eval mode).
-        image_path: Path to the image.
-        device: torch device.
-
-    Returns:
-        dict with:
-            - 'class': int (0=Male, 1=Female per problem statement)
-            - 'label': str ('Male' or 'Female')
-            - 'probability': float (probability of the predicted class)
-            - 'raw_score': float (raw sigmoid output)
-    """
     if device is None:
         device = next(model.parameters()).device
 
@@ -147,8 +123,7 @@ def predict(model, image_path: str, device=None):
         output = model(tensor)
         raw_score = output.item()  # Probability from sigmoid
 
-    # ImageFolder mapping: Female=0, Male=1 (alphabetical)
-    # raw_score > 0.5 → class 1 → Male (ImageFolder)
+    
     if raw_score > 0.5:
         imagefolder_class = 1
         label = "Male"
@@ -158,7 +133,7 @@ def predict(model, image_path: str, device=None):
         label = "Female"
         confidence = 1 - raw_score
 
-    # Problem statement mapping: Male=0, Female=1
+   
     problem_class = LABEL_TO_PROBLEM[label]
 
     return {
@@ -169,19 +144,10 @@ def predict(model, image_path: str, device=None):
     }
 
 
-# ============================================================
-# HIGH-LEVEL API
-# ============================================================
+
 
 class GenderClassifier:
-    """
-    High-level gender classification API.
 
-    Example:
-        clf = GenderClassifier("outputs/best_efficientnet_b0.pth", "efficientnet_b0")
-        result = clf.predict("face.jpg")
-        print(f"Gender: {result['label']} ({result['probability']:.1%})")
-    """
 
     def __init__(self, checkpoint_path: str, model_name: str, device=None):
         self.device = device or get_device()
@@ -201,9 +167,6 @@ class GenderClassifier:
         return [self.predict(p) for p in image_paths]
 
 
-# ============================================================
-# CLI
-# ============================================================
 
 def main():
     parser = argparse.ArgumentParser(description="Gender classification inference")
