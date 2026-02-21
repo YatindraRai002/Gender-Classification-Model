@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Data & Models
+Dataset/
+model/outputs/*.pth
+model/outputs/test_evaluation_report.txt
+
+# OS
+.DS_Store
+Thumbs.db
