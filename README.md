@@ -93,4 +93,4 @@ Team2_Equalis/
 
 ---
 
-*Built for ML Benchmarking Competition by Team2_Equalis*
+
